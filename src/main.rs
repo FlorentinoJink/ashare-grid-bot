@@ -1,7 +1,6 @@
 mod feishu;
 mod grid;
 mod market;
-mod notebooks;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -15,7 +14,7 @@ use axum::{
     extract::{Path, Request, State},
     http::{StatusCode, header},
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
 };
 use chrono::Utc;
@@ -205,30 +204,7 @@ async fn main() -> Result<()> {
     let router = Router::new()
         .route(
             "/",
-            get(|| async { notebooks::page(include_str!("../web/index.html"), "/") }),
-        )
-        .route(
-            "/dividends",
-            get(|| async { notebooks::page(include_str!("../web/dividends.html"), "/dividends") }),
-        )
-        .route(
-            "/allocation",
-            get(|| async {
-                notebooks::page(include_str!("../web/allocation.html"), "/allocation")
-            }),
-        )
-        .route(
-            "/notebooks.js",
-            get(|| async {
-                (
-                    [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
-                    include_str!("../web/notebooks.js"),
-                )
-            }),
-        )
-        .route(
-            "/api/notebooks/{section}",
-            get(notebooks::list).post(notebooks::save),
+            get(|| async { Html(include_str!("../web/index.html")) }),
         )
         .route(
             "/style.css",

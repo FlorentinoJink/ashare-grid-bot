@@ -23,11 +23,7 @@ pub async fn open(path: &std::path::Path) -> Result<SqlitePool> {
         body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', delivery TEXT NOT NULL,
         attempts INTEGER NOT NULL DEFAULT 0, retry_at INTEGER NOT NULL DEFAULT 0,
         error TEXT, fill INTEGER, fee INTEGER);
-        CREATE INDEX IF NOT EXISTS outbox ON signals(status,delivery,retry_at);
-        CREATE TABLE IF NOT EXISTS notebook_entries (
-            section TEXT NOT NULL, entry_key TEXT NOT NULL, body TEXT NOT NULL,
-            PRIMARY KEY(section, entry_key)
-        );").execute(&pool).await?;
+        CREATE INDEX IF NOT EXISTS outbox ON signals(status,delivery,retry_at);").execute(&pool).await?;
     Ok(pool)
 }
 
