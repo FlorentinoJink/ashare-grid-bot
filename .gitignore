@@ -1,0 +1,9 @@
+/target/
+/data/
+.env
+.env.*
+!.env.example
+*config.local.toml
+/feishu/
+/config.toml
+*.sqlite*

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#103c39" />
+    <title>格间 · A股网格控制台</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div class="top">
+        <div class="brand">
+          <i class="mark" aria-hidden="true"><b></b><b></b><b></b></i
+          ><strong>格间</strong><span></span>A股网格控制台
+        </div>
+        <div class="clock">
+          <i class="dot"></i><span id="market">连接中</span
+          ><time id="clock"></time>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="intro">
+        <div>
+          <h1>策略工作台</h1>
+          <p>配置价格区间，跟踪网格订单与飞书回执。</p>
+        </div>
+        <button id="test" class="light" disabled>测试飞书连接 ↗</button>
+      </div>
+      <section class="metrics" aria-label="运行概览">
+        <div><small>运行中策略</small><strong id="num-active">—</strong></div>
+        <div><small>待处理订单</small><strong id="num-open">—</strong></div>
+        <div><small>已登记成交</small><strong id="num-filled">—</strong></div>
+        <div>
+          <small>飞书通道</small
+          ><strong class="channel" id="channel">读取中</strong>
+        </div>
+      </section>
+      <div class="workspace">
+        <section class="panel formpanel">
+          <div class="panelhead"><h2>新建网格策略</h2></div>
+          <form id="form">
+            <label
+              >股票代码
+              <input
+                id="symbol"
+                list="stocks"
+                value="600036"
+                required
+                pattern="[0-9]{6}"
+                maxlength="6"
+                autocomplete="off"
+            /></label>
+            <datalist id="stocks">
+              <option value="600036">招商银行</option>
+              <option value="000001">平安银行</option>
+              <option value="600519">贵州茅台</option>
+              <option value="601318">中国平安</option>
+              <option value="000858">五粮液</option>
+              <option value="002594">比亚迪</option>
+            </datalist>
+            <div id="quote">读取最近行情…</div>
+            <fieldset>
+              <legend>网格模式</legend>
+              <div class="modes">
+                <label
+                  ><input
+                    type="radio"
+                    name="mode"
+                    value="arithmetic"
+                    checked
+                  /><span>等差网格</span></label
+                ><label
+                  ><input type="radio" name="mode" value="geometric" /><span
+                    >等比网格</span
+                  ></label
+                >
+              </div>
+            </fieldset>
+            <div class="fields">
+              <label
+                >价格下限
+                <span class="unit"
+                  ><input
+                    id="lower"
+                    type="number"
+                    min=".01"
+                    step=".01"
+                    required
+                    placeholder="0.00"
+                  /><i>元</i></span
+                ></label
+              ><label
+                >价格上限
+                <span class="unit"
+                  ><input
+                    id="upper"
+                    type="number"
+                    min=".02"
+                    step=".01"
+                    required
+                    placeholder="0.00"
+                  /><i>元</i></span
+                ></label
+              >
+              <label
+                >网格数量
+                <span class="unit"
+                  ><input
+                    id="grids"
+                    type="number"
+                    value="8"
+                    min="2"
+                    max="100"
+                    required
+                  /><i>格</i></span
+                ></label
+              ><label
+                >每格数量
+                <span class="unit"
+                  ><input
+                    id="quantity"
+                    type="number"
+                    value="100"
+                    min="100"
+                    step="100"
+                    max="1000000"
+                    required
+                  /><i>股</i></span
+                ></label
+              >
+              <label
+                >分配现金
+                <span class="unit"
+                  ><input
+                    id="cash"
+                    type="number"
+                    value="50000"
+                    min="0"
+                    step=".01"
+                    required
+                  /><i>元</i></span
+                ></label
+              ><label
+                >初始可卖底仓
+                <span class="unit"
+                  ><input
+                    id="shares"
+                    type="number"
+                    value="0"
+                    min="0"
+                    required
+                  /><i>股</i></span
+                ></label
+              >
+            </div>
+            <label class="check"
+              ><input type="checkbox" id="notify" /> 触发时推送飞书</label
+            ><button class="primary" id="create">
+              启动策略 <span>→</span>
+            </button>
+            <p id="form-note" role="status"></p>
+          </form>
+        </section>
+        <div class="right">
+          <section class="panel preview">
+            <div class="panelhead">
+              <h2>网格预览</h2>
+              <span id="preview-mode" class="tag">等差网格</span>
+            </div>
+            <div class="previewmeta">
+              <strong id="chart-symbol">600036</strong
+              ><span id="chart-range">等待价格区间</span>
+            </div>
+            <canvas id="chart" aria-label="网格价格阶梯与最近报价"></canvas>
+            <div class="legend">
+              <span><i></i>网格区间</span><span><i></i>最近报价</span
+              ><span id="spread"></span>
+            </div>
+          </section>
+          <section class="panel strategies">
+            <div class="panelhead">
+              <h2>我的策略</h2>
+              <span id="plan-count" class="count">0</span>
+            </div>
+            <div id="plans"></div>
+          </section>
+        </div>
+      </div>
+      <section class="panel orders">
+        <div class="panelhead">
+          <h2>订单记录</h2>
+          <select id="filter" aria-label="筛选订单">
+            <option value="all">全部状态</option>
+            <option value="open">待处理</option>
+            <option value="filled">已成交</option>
+            <option value="cancelled">已取消</option>
+          </select>
+        </div>
+        <div id="orders"></div>
+      </section>
+      <footer>
+        <span>格间 · 本地信号工作台</span><span>北京时间 / CNY</span>
+      </footer>
+    </main>
+    <dialog id="dialog">
+      <form method="dialog" id="resolve-form">
+        <h2 id="dialog-title"></h2>
+        <p id="dialog-desc"></p>
+        <div id="fill-fields" class="fields">
+          <label
+            >实际成交价（元）<input
+              id="fill-price"
+              type="number"
+              step=".01"
+              min=".01" /></label
+          ><label
+            >总费用（元）<input
+              id="fee"
+              type="number"
+              step=".01"
+              min="0"
+              value="0"
+          /></label>
+        </div>
+        <p id="dialog-note" role="status"></p>
+        <div class="actions">
+          <button type="button" id="dismiss" class="light">返回</button
+          ><button id="commit" class="primary">确认</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+  </body>
+</html>
