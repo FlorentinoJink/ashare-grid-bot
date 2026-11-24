@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#103c39" />
+    <title>红利收息 · 格间</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/notebooks.js"></script>
+  </head>
+  <body data-section="dividends">
+    <header>
+      <div class="top">
+        <div class="brand">
+          <i class="mark" aria-hidden="true"><b></b><b></b><b></b></i
+          ><strong>格间</strong><span></span>A股策略控制台
+        </div>
+      </div>
+    </header>
+    <!-- strategy-nav -->
+    <main>
+      <div class="intro">
+        <div>
+          <h1>红利收息</h1>
+          <p>按公告录入年度常规现金分红，以参考价测算股息率与税前收息。</p>
+        </div>
+      </div>
+      <div class="workspace notebook">
+        <section class="panel formpanel">
+          <div class="panelhead"><h2>分红记录</h2></div>
+          <form id="entry">
+            <div class="fields">
+              <label
+                >股票 / ETF 代码<input
+                  type="text"
+                  name="symbol"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  inputmode="numeric"
+                  placeholder="六位代码"
+                  required
+              /></label>
+              <label
+                >分红所属年度<input
+                  type="number"
+                  name="year"
+                  min="1990"
+                  max="2100"
+                  step="1"
+                  placeholder="年度"
+                  required
+              /></label>
+              <label
+                >分红进度<select name="basis">
+                  <option>已实施</option>
+                  <option>预案</option>
+                </select></label
+              >
+              <label
+                >每股 / 份年度分红（元）<input
+                  type="number"
+                  name="dividend"
+                  min="0"
+                  max="100000"
+                  step=".000001"
+                  placeholder="税前，剔除特别分红"
+                  required
+              /></label>
+              <label
+                >手动参考价（元）<input
+                  type="number"
+                  name="price"
+                  min=".001"
+                  max="100000"
+                  step=".001"
+                  required
+              /></label>
+              <label
+                >目标股息率（%）<input
+                  type="number"
+                  name="target"
+                  min=".01"
+                  max="100"
+                  step=".01"
+                  required
+              /></label>
+              <label
+                >持有股数 / 份数<input
+                  type="number"
+                  name="shares"
+                  min="0"
+                  max="4294967295"
+                  step="1"
+                  value="0"
+                  required
+              /></label>
+            </div>
+            <div class="save-row">
+              <button class="primary" id="save">保存记录</button
+              ><span id="save-status" role="status"></span>
+            </div>
+          </form>
+        </section>
+        <section class="panel result">
+          <div class="panelhead"><h2>收息测算</h2></div>
+          <dl>
+            <div>
+              <dt>参考股息率</dt>
+              <dd id="yield">—</dd>
+            </div>
+            <div>
+              <dt>目标股息率对应价格</dt>
+              <dd id="watch">—</dd>
+            </div>
+            <div>
+              <dt>按当前持仓测算的年度税前分红</dt>
+              <dd id="income">—</dd>
+            </div>
+          </dl>
+          <p id="result-note"></p>
+        </section>
+      </div>
+      <section class="panel orders">
+        <div class="panelhead">
+          <h2>我的分红记录</h2>
+          <span id="count" class="count">0</span>
+        </div>
+        <div class="scroll">
+          <table hidden id="records">
+            <thead>
+              <tr>
+                <th scope="col">证券代码</th>
+                <th scope="col">年度</th>
+                <th scope="col">分红进度</th>
+                <th scope="col">参考股息率</th>
+                <th scope="col">关注价</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="empty" class="empty"><strong>暂无分红记录</strong></div>
+      </section>
+    </main>
+  </body>
+</html>

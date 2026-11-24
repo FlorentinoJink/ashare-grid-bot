@@ -367,6 +367,38 @@ function orders() {
     "</tbody></table></div>";
 }
 let refreshSeq = 0;
+const gridFields = [
+  "symbol",
+  "lower",
+  "upper",
+  "grids",
+  "quantity",
+  "cash",
+  "shares",
+  "filter",
+];
+let gridDraft = null;
+try {
+  gridDraft = JSON.parse(sessionStorage.getItem("gejian.draft.grid") || "null");
+  if (gridDraft) {
+    for (const id of gridFields)
+      if (typeof gridDraft[id] === "string") $(id).value = gridDraft[id];
+    for (const radio of document.querySelectorAll("[name=mode]"))
+      radio.checked = radio.value === gridDraft.mode;
+  }
+} catch {
+  gridDraft = null;
+}
+window.addEventListener("pagehide", () => {
+  const data = Object.fromEntries(gridFields.map((id) => [id, $(id).value]));
+  data.mode =
+    document.querySelector("[name=mode]:checked")?.value || "arithmetic";
+  data.notify = $("notify").checked;
+  data.chart = $("chart-source").value;
+  try {
+    sessionStorage.setItem("gejian.draft.grid", JSON.stringify(data));
+  } catch {}
+});
 async function refresh() {
   const seq = ++refreshSeq;
   try {
@@ -375,10 +407,10 @@ async function refresh() {
     const first = !snapshot;
     snapshot = value;
     if (first) {
-      $("notify").checked = value.feishu;
+      $("notify").checked = value.feishu && (gridDraft?.notify ?? true);
       updateChartSources();
       const open = value.orders.find((o) => o.status === "open");
-      if (open) $("chart-source").value = open.signal.strategy;
+      $("chart-source").value = gridDraft?.chart ?? open?.signal.strategy ?? "";
     }
     paint();
   } catch (e) {
