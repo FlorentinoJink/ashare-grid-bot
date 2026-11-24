@@ -167,16 +167,26 @@
         <div class="right">
           <section class="panel preview">
             <div class="panelhead">
-              <h2>网格预览</h2>
-              <span id="preview-mode" class="tag">等差网格</span>
+              <h2>网格挂单图</h2>
+              <select id="chart-source" aria-label="选择挂单图策略">
+                <option value="">参数预览</option>
+              </select>
             </div>
             <div class="previewmeta">
               <strong id="chart-symbol">600036</strong
-              ><span id="chart-range">等待价格区间</span>
+              ><span id="chart-range">等待价格区间</span
+              ><span id="preview-mode" class="tag">等差网格</span>
             </div>
-            <canvas id="chart" aria-label="网格价格阶梯与最近报价"></canvas>
+            <div
+              id="chart"
+              class="price-ladder"
+              role="list"
+              aria-label="按限价从高到低排列的网格价位"
+              tabindex="0"
+            ></div>
             <div class="legend">
-              <span><i></i>网格区间</span><span><i></i>最近报价</span
+              <span><i class="buy-key"></i>买入</span
+              ><span><i class="sell-key"></i>卖出</span
               ><span id="spread"></span>
             </div>
           </section>

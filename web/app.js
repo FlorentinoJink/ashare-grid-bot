@@ -26,7 +26,7 @@ const stamp = (at) =>
   }).format(at * 1000);
 let snapshot = null,
   currentQuote = null,
-  levels = [],
+  draft = null,
   previewId = 0,
   quoteId = 0,
   quoteTimer,
@@ -105,93 +105,139 @@ function planPreview() {
   const seq = ++previewId;
   clearTimeout(previewTimer);
   previewTimer = setTimeout(async () => {
-    const c = config();
-    $("chart-symbol").textContent = c.symbol || "—";
-    $("preview-mode").textContent =
-      c.mode === "arithmetic" ? "等差网格" : "等比网格";
+    const cfg = config();
+    const quote =
+      currentQuote?.symbol === cfg.symbol ? currentQuote.price : null;
     try {
-      const r = await api("preview", c);
+      const result = await api("preview", { ...cfg, reference: quote });
       if (seq !== previewId) return;
-      levels = r.levels;
-      $("chart-range").textContent =
-        "¥" + money(c.lower) + " – ¥" + money(c.upper);
-      $("spread").textContent =
-        c.grids +
-        " 格 · " +
-        (c.mode === "arithmetic"
-          ? "平均价差 ¥" + ((c.upper - c.lower) / 100 / c.grids).toFixed(2)
-          : "每格约 " +
-            ((Math.pow(c.upper / c.lower, 1 / c.grids) - 1) * 100).toFixed(2) +
-            "%");
+      draft = { cfg, quote, levels: result.levels, cells: result.cells };
     } catch (e) {
       if (seq !== previewId) return;
-      levels = [];
-      $("chart-range").textContent = e.message;
-      $("spread").textContent = "";
+      draft = { cfg, quote, levels: [], cells: [], error: e.message };
     }
     draw();
   }, 120);
 }
+
+function updateChartSources() {
+  const select = $("chart-source");
+  const value = select.value;
+  const options = ['<option value="">参数预览</option>'];
+  for (const { strategy: p } of snapshot.plans) {
+    const label = p.name + " " + p.config.symbol + " · " + p.id.slice(0, 6);
+    options.push(
+      '<option value="' + esc(p.id) + '">' + esc(label) + "</option>",
+    );
+  }
+  const html = options.join("");
+  if (select.innerHTML !== html) {
+    select.innerHTML = html;
+    select.value = value;
+  }
+}
+
+// A price may carry opposite sides from adjacent cells. Keep each signal on its own row.
+function ladderRows(view, openOrders) {
+  const rows = [],
+    occupied = new Set();
+  function add(price, kind, label, side = "", qty = null) {
+    rows.push({ price, kind, label, side, qty });
+    occupied.add(price);
+  }
+  for (const { signal } of openOrders) {
+    add(signal.price, "pending", "待处理", signal.side, signal.quantity);
+  }
+  view.cells.forEach((cell, i) => {
+    if (!cell.pending) {
+      const level = view.levels[i + (cell.side === "sell" ? 1 : 0)];
+      add(level, "planned", "计划", cell.side, view.cfg.quantity);
+    }
+  });
+  if (view.quote != null) add(view.quote, "quote", "最近报价");
+  for (const price of view.levels) {
+    if (!occupied.has(price)) add(price, "reference", "网格价位");
+  }
+  return rows.sort((a, b) => b.price - a.price);
+}
 function draw() {
-  const canvas = $("chart"),
-    ctx = canvas.getContext("2d"),
-    w = canvas.clientWidth,
-    h = canvas.clientHeight,
-    dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  ctx.scale(dpr, dpr);
-  if (!levels.length || w < 80) return;
-  const L = 21,
-    R = w - 68,
-    T = 14,
-    B = h - 25,
-    min = levels[0],
-    max = levels.at(-1);
-  const x = (i) => L + ((R - L) * i) / (levels.length - 1),
-    y = (p) => B - ((B - T) * (p - min)) / (max - min);
-  ctx.font = "11px Consolas, monospace";
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const p = min + ((max - min) * i) / 4,
-      row = y(p);
-    ctx.strokeStyle = "#e0e9df";
-    ctx.beginPath();
-    ctx.moveTo(L, row);
-    ctx.lineTo(R, row);
-    ctx.stroke();
-    ctx.fillStyle = "#63796a";
-    ctx.fillText((p / 100).toFixed(2), R + 9, row + 4);
+  const id = $("chart-source").value;
+  const p = snapshot?.plans.find(
+    ({ strategy }) => strategy.id === id,
+  )?.strategy;
+  const view = p
+    ? {
+        cfg: p.config,
+        levels: p.levels,
+        cells: p.cells,
+        quote:
+          p.last ??
+          (currentQuote?.symbol === p.config.symbol
+            ? currentQuote.price
+            : null),
+      }
+    : draft;
+  if (!view) return;
+  const { cfg } = view;
+  const openOrders = p
+    ? snapshot.orders.filter(
+        (o) => o.status === "open" && o.signal.strategy === p.id,
+      )
+    : [];
+  $("chart-symbol").textContent = cfg.symbol || "—";
+  $("preview-mode").textContent =
+    cfg.mode === "arithmetic" ? "等差网格" : "等比网格";
+  $("chart-range").textContent =
+    view.error || "¥" + money(cfg.lower) + " – ¥" + money(cfg.upper);
+  $("spread").textContent = view.error
+    ? ""
+    : cfg.grids +
+      " 格 · " +
+      (p
+        ? openOrders.length + " 笔待处理"
+        : cfg.mode === "arithmetic"
+          ? "平均价差 ¥" +
+            ((cfg.upper - cfg.lower) / 100 / cfg.grids).toFixed(2)
+          : "每格约 " +
+            (
+              (Math.pow(cfg.upper / cfg.lower, 1 / cfg.grids) - 1) *
+              100
+            ).toFixed(2) +
+            "%");
+  const chart = $("chart");
+  const rows = view.error ? [] : ladderRows(view, openOrders);
+  const html = rows
+    .map((r) => {
+      const direction =
+        r.side === "buy" ? "买入" : r.side === "sell" ? "卖出" : "";
+      const text =
+        r.label +
+        direction +
+        (r.qty != null ? " · " + r.qty.toLocaleString("zh-CN") + " 股" : "");
+      return (
+        '<div role="listitem" class="price-row ' +
+        r.kind +
+        " " +
+        r.side +
+        '"><i aria-hidden="true"></i><span class="order-label">' +
+        text +
+        '</span><b class="limit-price">¥' +
+        money(r.price) +
+        "</b></div>"
+      );
+    })
+    .join("");
+  const source = id || "draft-" + cfg.symbol;
+  const changed = chart.dataset.source !== source;
+  if (html !== chart.innerHTML) chart.innerHTML = html;
+  if (changed && rows.length) {
+    chart.dataset.source = source;
+    const focus =
+      chart.querySelector(".pending") || chart.querySelector(".quote");
+    chart.scrollTop = focus
+      ? focus.offsetTop - (chart.clientHeight - focus.offsetHeight) / 2
+      : 0;
   }
-  const path = new Path2D();
-  path.moveTo(L, B);
-  for (let i = 1; i < levels.length; i++) {
-    path.lineTo(x(i), y(levels[i - 1]));
-    path.lineTo(x(i), y(levels[i]));
-  }
-  const area = new Path2D(path);
-  area.lineTo(R, B);
-  area.closePath();
-  ctx.fillStyle = "#e5f0e5";
-  ctx.fill(area);
-  ctx.strokeStyle = "#3e8164";
-  ctx.lineWidth = 2;
-  ctx.stroke(path);
-  const p = currentQuote?.price;
-  if (p >= min && p <= max) {
-    ctx.strokeStyle = "#b9813a";
-    ctx.lineWidth = 1.4;
-    ctx.setLineDash([5, 4]);
-    ctx.beginPath();
-    ctx.moveTo(L, y(p));
-    ctx.lineTo(R, y(p));
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  ctx.fillStyle = "#78877c";
-  ctx.fillText("下限", L, h - 5);
-  ctx.textAlign = "right";
-  ctx.fillText("上限", R, h - 5);
 }
 const empty = (a, b) =>
   '<div class="empty"><strong>' + a + "</strong><p>" + b + "</p></div>";
@@ -255,6 +301,8 @@ function paint() {
       )
       .join("") || empty("还没有策略", "设置左侧参数，启动第一组网格。");
   orders();
+  updateChartSources();
+  draw();
 }
 function orders() {
   const filter = $("filter").value;
@@ -326,7 +374,12 @@ async function refresh() {
     if (seq !== refreshSeq) return;
     const first = !snapshot;
     snapshot = value;
-    if (first) $("notify").checked = value.feishu;
+    if (first) {
+      $("notify").checked = value.feishu;
+      updateChartSources();
+      const open = value.orders.find((o) => o.status === "open");
+      if (open) $("chart-source").value = open.signal.strategy;
+    }
     paint();
   } catch (e) {
     if (seq === refreshSeq) $("market").textContent = "服务连接异常";
@@ -340,15 +393,21 @@ $("symbol").addEventListener("input", () => {
   $("upper").value = "";
   quoteTimer = setTimeout(lookup, 300);
 });
-$("form").addEventListener("input", planPreview);
+$("chart-source").addEventListener("change", draw);
+$("form").addEventListener("input", () => {
+  $("chart-source").value = "";
+  planPreview();
+});
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("create").disabled = true;
   $("form-note").textContent = "";
   try {
-    await api("plans", config());
+    const result = await api("plans", config());
     toast("策略已启动");
     await refresh();
+    $("chart-source").value = result.id;
+    draw();
   } catch (err) {
     $("form-note").textContent = err.message;
   } finally {
@@ -439,7 +498,6 @@ function clock() {
     hour12: false,
   });
 }
-new ResizeObserver(draw).observe($("chart"));
 clock();
 setInterval(clock, 1000);
 refresh();

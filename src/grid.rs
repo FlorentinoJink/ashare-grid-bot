@@ -37,6 +37,24 @@ pub fn market(code: &str) -> Result<&'static str> {
 }
 
 impl Config {
+    pub fn initial_cells(&self, levels: &[i64], reference: i64, mut shares: i64) -> Vec<Cell> {
+        levels
+            .windows(2)
+            .map(|pair| {
+                let side = if pair[0] >= reference && shares >= self.quantity {
+                    shares -= self.quantity;
+                    Side::Sell
+                } else {
+                    Side::Buy
+                };
+                Cell {
+                    side,
+                    pending: None,
+                }
+            })
+            .collect()
+    }
+
     pub fn levels(&self) -> Result<Vec<i64>> {
         market(&self.symbol)?;
         ensure!(
@@ -182,22 +200,9 @@ impl Strategy {
         self.locked.retain(|d, _| d.as_str() >= day);
         let previous = self.last.replace(price);
         if self.cells.is_empty() {
-            let mut seed_shares = self.available(day).1;
-            self.cells = self.levels[..self.config.grids]
-                .iter()
-                .map(|&lo| {
-                    let side = if lo >= price && seed_shares >= self.config.quantity {
-                        seed_shares -= self.config.quantity;
-                        Side::Sell
-                    } else {
-                        Side::Buy
-                    };
-                    Cell {
-                        side,
-                        pending: None,
-                    }
-                })
-                .collect();
+            self.cells = self
+                .config
+                .initial_cells(&self.levels, price, self.available(day).1);
         }
         let Some(old) = previous else {
             return vec![];

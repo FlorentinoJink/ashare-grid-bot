@@ -76,8 +76,21 @@ async fn quote(State(app): State<App>, Path(code): Path<String>) -> Reply {
     let q = market::fetch(&app.client, &code).await?;
     Ok(Json(json!(q)))
 }
-async fn preview(Json(cfg): Json<Config>) -> Reply {
-    Ok(Json(json!({"levels":cfg.levels()?})))
+#[derive(Deserialize)]
+struct Preview {
+    #[serde(flatten)]
+    config: Config,
+    reference: Option<i64>,
+}
+async fn preview(Json(input): Json<Preview>) -> Reply {
+    let cfg = input.config;
+    let levels = cfg.levels()?;
+    let cells = input
+        .reference
+        .filter(|price| *price > 0)
+        .map(|price| cfg.initial_cells(&levels, price, cfg.shares))
+        .unwrap_or_default();
+    Ok(Json(json!({"levels":levels,"cells":cells})))
 }
 async fn create(State(app): State<App>, Json(cfg): Json<Config>) -> Reply {
     cfg.levels()?;
